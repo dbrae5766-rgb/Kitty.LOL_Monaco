@@ -1,123 +1,208 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Lua Editor</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Celestia - Monaco Code Editor</title>
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Monaco Loader -->
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+
   <style>
     html, body {
-      width: 100%;
       height: 100%;
       margin: 0;
       padding: 0;
-      overflow: hidden;
+      background: #1e1e1e; /* match old editor dark theme */
+      font-family: sans-serif;
+      color: #ccc;
     }
-    #container {
-      width: 100%;
+
+    #app {
       height: 100%;
+      display: flex;
+      flex-direction: column;
     }
-    /* Optional: styling for squiggly error underline */
+
+    #editor-container {
+      flex: 1;
+      border-top: 1px solid #333;
+    }
+
+    /* Tab styling */
+    #tab-bar {
+      background: #252526;
+      border-bottom: 1px solid #333;
+      color: #ccc;
+      font-size: 14px;
+    }
+
+    .add-tab-button {
+      margin-left: auto;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: #ccc;
+      padding: 4px;
+      display: flex;
+      align-items: center;
+    }
+
+    /* Dialog */
+    .dialog-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .dialog-content {
+      background: #2d2d2d;
+      padding: 1rem;
+      border-radius: 8px;
+      width: 300px;
+    }
+    .dialog-input {
+      width: 100%;
+      padding: 6px;
+      margin: 8px 0;
+      background: #1e1e1e;
+      border: 1px solid #555;
+      color: #ccc;
+    }
+    .dialog-button {
+      padding: 6px 12px;
+      border: none;
+      cursor: pointer;
+      margin: 4px;
+    }
+    .dialog-button.primary {
+      background: #007acc;
+      color: white;
+    }
+    .dialog-button.secondary {
+      background: #444;
+      color: white;
+    }
+
+    /* Context menu */
+    .context-menu {
+      position: absolute;
+      background: #2d2d2d;
+      border: 1px solid #444;
+      border-radius: 4px;
+      z-index: 999;
+    }
+    .context-menu-item {
+      padding: 6px 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #ccc;
+    }
+    .context-menu-item:hover {
+      background: #3c3c3c;
+    }
+
+    /* Error underline */
     .squiggly-error {
       text-decoration: red wavy underline;
     }
   </style>
-  <!-- Load Monaco from CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
 </head>
 <body>
-  <div id="container"></div>
+  <div id="app">
+
+    <!-- Tabs -->
+    <div id="tab-bar" class="flex items-center min-h-[40px] px-2 pt-2">
+      <div id="tabs-container" class="flex items-center gap-1"></div>
+      <button id="add-tab-btn" class="add-tab-button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Monaco editor -->
+    <div id="editor-container"></div>
+  </div>
+
+  <!-- Rename Dialog -->
+  <div id="rename-dialog" class="dialog-overlay hidden">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3>Rename File</h3>
+      </div>
+      <input type="text" id="rename-input" placeholder="Enter new file name" class="dialog-input">
+      <div class="dialog-footer">
+        <button id="cancel-rename" class="dialog-button secondary">Cancel</button>
+        <button id="confirm-rename" class="dialog-button primary">Rename</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Context Menu -->
+  <div id="context-menu" class="context-menu hidden">
+    <div class="context-menu-item" data-action="rename">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+        <path d="m18.5 2.5 a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+      </svg>
+      Rename
+    </div>
+    <div class="context-menu-item" data-action="save">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2">
+        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+        <polyline points="17,21 17,13 7,13 7,21"></polyline>
+        <polyline points="7,3 7,8 15,8"></polyline>
+      </svg>
+      Save
+    </div>
+  </div>
 
   <script>
     window.addEventListener("DOMContentLoaded", () => {
-      require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+      require.config({
+        paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs" }
+      });
 
-      let editor;
-      let Proposals = [];
-
-      require(['vs/editor/editor.main'], function () {
-        // --- Completion provider ---
-        monaco.languages.registerCompletionItemProvider('lua', {
-          provideCompletionItems: () => Proposals
-        });
-
-        // --- Themes ---
-        monaco.editor.defineTheme('net-theme-light', {
-          base: 'vs',
+      require(["vs/editor/editor.main"], function () {
+        // Define old-style custom dark theme
+        monaco.editor.defineTheme("net-theme-dark", {
+          base: "vs-dark",
           inherit: true,
           rules: [
-            { token: 'global', foreground: '000000' },
-            { token: 'keyword', foreground: 'ff6a00' },
-            { token: 'comment', foreground: '666666' },
-            { token: 'number', foreground: 'ffc600' },
-            { token: 'string', foreground: 'ff8c3a' },
+            { token: "global", foreground: "FFFFFF", fontStyle: "bold" },
+            { token: "keyword", foreground: "ff6a00", fontStyle: "bold" },
+            { token: "comment", foreground: "666666" },
+            { token: "number", foreground: "ffc600" },
+            { token: "string", foreground: "ff8c3a" },
           ]
         });
 
-        monaco.editor.defineTheme('net-theme-dark', {
-          base: 'vs-dark',
-          inherit: true,
-          rules: [
-            { token: 'global', foreground: 'FFFFFF', fontStyle: "bold" },
-            { token: 'keyword', foreground: 'ff6a00', fontStyle: "bold" },
-            { token: 'comment', foreground: '666666' },
-            { token: 'number', foreground: 'ffc600' },
-            { token: 'string', foreground: 'ff8c3a' },
-          ]
-        });
-
-        // --- Create editor ---
-        editor = monaco.editor.create(document.getElementById('container'), {
-          value: 'print("Hello User, and welcome to Kitty.lol")',
-          language: 'lua',
-          theme: 'net-theme-dark',
+        // Init editor
+        const editor = monaco.editor.create(document.getElementById("editor-container"), {
+          value: 'print("Hello User, and welcome to Celestia!")',
+          language: "lua",
+          theme: "net-theme-dark",
+          automaticLayout: true,
           folding: true,
-          scrollbar: { verticalHasArrows: true },
-          dragAndDrop: true,
-          links: false,
           minimap: { enabled: false },
-          showFoldingControls: "always",
           smoothScrolling: true,
+          scrollbar: { verticalHasArrows: true },
         });
 
-        window.addEventListener("resize", () => editor.layout());
-
-        // === Your API functions still work ===
+        // Example API functions (optional)
         window.GetText = () => editor.getValue();
         window.SetText = (x) => editor.setValue(x);
-        window.SetTheme = (themeName) => {
-          if (themeName === "Dark") monaco.editor.setTheme("net-theme-dark");
-          if (themeName === "Light") monaco.editor.setTheme("net-theme-light");
-        };
-        window.SwitchMinimap = (flag) => editor.updateOptions({ minimap: { enabled: flag } });
-        window.SwitchReadonly = (flag) => editor.updateOptions({ readOnly: flag });
-        window.SwitchRenderWhitespace = (op) => editor.updateOptions({ renderWhitespace: op });
-        window.SwitchLinks = (flag) => editor.updateOptions({ links: flag });
-        window.SwitchLineHeight = (num) => editor.updateOptions({ lineHeight: num });
-        window.SwitchFontSize = (num) => editor.updateOptions({ fontSize: num });
-        window.SwitchFolding = (flag) => editor.updateOptions({ folding: flag });
-        window.SwitchAutoIndent = (flag) => editor.updateOptions({ autoIndent: flag });
-        window.SwitchFontFamily = (name) => editor.updateOptions({ fontFamily: name });
-        window.SwitchFontLigatures = (flag) => editor.updateOptions({ fontLigatures: flag });
-        window.ShowErr = (line, column, endline, endcolumn, errMessage) => {
-          editor.revealPositionInCenter({ lineNumber: line, column: column });
-          editor.deltaDecorations([], [{
-            range: new monaco.Range(line, column, endline, endcolumn),
-            options: {
-              inlineClassName: 'squiggly-error',
-              hoverMessage: { value: errMessage },
-            },
-          }]);
-        };
-        window.AddIntellisense = (l, k, d, i) => {
-          let kindMap = monaco.languages.CompletionItemKind;
-          let t = kindMap[k] || kindMap.Text;
-          Proposals.push({ label: l, kind: t, detail: d, insertText: i });
-        };
-        window.SetScroll = (line) => editor.revealLineInCenter({ lineNumber: line });
-        window.Refresh = () => {
-          let text = editor.getValue();
-          editor.setValue("");
-          editor.trigger('keyboard', 'type', { text });
-        };
+        window.SetTheme = (name) => monaco.editor.setTheme(name);
       });
     });
   </script>
