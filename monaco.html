@@ -92,28 +92,62 @@
         base: "vs-dark",
         inherit: true,
         rules: [
-          { token: "keyword", foreground: "c586c0" }, // local, function
-          { token: "identifier", foreground: "dcdcaa" }, // variables
-          { token: "string", foreground: "ce9178" }, // strings
+          { token: "keyword", foreground: "c586c0" },
+          { token: "identifier", foreground: "dcdcaa" },
+          { token: "string", foreground: "ce9178" },
           { token: "number", foreground: "b5cea8" },
           { token: "comment", foreground: "6a9955" },
-          { token: "function", foreground: "4fc1ff" }, // print(), warn()
+          { token: "function", foreground: "4fc1ff" },
         ],
         colors: {
           "editor.background": "#111111"
         }
       });
 
-      // === Add Lua completions ===
+      // === Lua Completions (basic + advanced Roblox keywords) ===
       monaco.languages.registerCompletionItemProvider("lua", {
-        provideCompletionItems: () => {
-          const suggestions = [
-            { label: "print", kind: monaco.languages.CompletionItemKind.Function, insertText: "print()", detail: "Print to console" },
-            { label: "warn", kind: monaco.languages.CompletionItemKind.Function, insertText: "warn()", detail: "Print warning" },
-            { label: "workspace", kind: monaco.languages.CompletionItemKind.Variable, insertText: "workspace", detail: "Global workspace" },
-            { label: "local", kind: monaco.languages.CompletionItemKind.Keyword, insertText: "local ", detail: "Declare local variable" }
+        provideCompletionItems: (model, position) => {
+          const word = model.getWordUntilPosition(position);
+          const range = {
+            startLineNumber: position.lineNumber,
+            endLineNumber: position.lineNumber,
+            startColumn: word.startColumn,
+            endColumn: word.endColumn
+          };
+
+          const keywords = [
+            // Lua
+            "local", "function", "end", "if", "then", "elseif", "else", "for", "while",
+            "repeat", "until", "return", "break", "continue", "do", "in", "and", "or", "not",
+
+            // Roblox globals
+            "game", "workspace", "script", "math", "string", "table", "pairs", "ipairs",
+            "wait", "spawn", "delay", "print", "warn", "Instance", "CFrame", "Vector3",
+            "UDim2", "Color3",
+
+            // Roblox services
+            "Players", "ReplicatedStorage", "ServerStorage", "Lighting", "StarterGui",
+            "Teams", "SoundService", "RunService", "UserInputService", "TweenService",
+
+            // Common methods
+            "FindFirstChild", "WaitForChild", "Destroy", "Clone", "GetChildren",
+            "GetService", "Connect", "Disconnect", "FireServer", "InvokeServer",
+            "FireClient", "InvokeClient",
+
+            // Constructors
+            "Instance.new", "Vector3.new", "CFrame.new", "UDim2.new",
+            "Color3.fromRGB", "Color3.fromHSV"
           ];
-          return { suggestions: suggestions };
+
+          const suggestions = keywords.map(word => ({
+            label: word,
+            kind: monaco.languages.CompletionItemKind.Keyword,
+            insertText: word,
+            range: range,
+            filterText: word.toLowerCase()
+          }));
+
+          return { suggestions };
         }
       });
 
@@ -173,16 +207,11 @@
       }
 
       function closeTab(index) {
-        if (tabs.length <= 1) return; // keep at least one tab
+        if (tabs.length <= 1) return;
         tabs[index].model.dispose();
         tabs.splice(index, 1);
-
-        // Renumber tabs
         tabs.forEach((t, i) => t.name = `Tab ${i + 1}`);
-
-        if (currentTabIndex >= tabs.length) {
-          currentTabIndex = tabs.length - 1;
-        }
+        if (currentTabIndex >= tabs.length) currentTabIndex = tabs.length - 1;
         switchTab(currentTabIndex);
       }
 
