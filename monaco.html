@@ -1,243 +1,117 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Celestia - Monaco Multi-Tab Editor</title>
-
-<style>
-  html,body { height:100%; margin:0; background:rgb(17,17,17); font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; color:#ccc;}
-  #app { height:100%; display:flex; flex-direction:column; }
-  /* top bar same as background, tabs are rgb(45,45,45) */
-  #tab-bar { display:flex; align-items:center; background:rgb(17,17,17); padding:6px 8px; border-bottom:1px solid #222; }
-  #tabs-container { display:flex; gap:6px; flex:1; align-items:flex-end; }
-  .tab {
-    background: rgb(45,45,45);
-    padding:6px 10px;
-    border-radius:6px 6px 0 0;
-    cursor:pointer;
-    font-size:13px;
-    display:flex;
-    gap:8px;
-    align-items:center;
-    border:1px solid #333;
-    border-bottom: none;
-    user-select:none;
-    color:#ddd;
-  }
-  .tab.active { background:#151515; color:#fff; box-shadow:0 -2px 0 #007acc inset; }
-  .close-btn { font-weight:700; cursor:pointer; color:#999; }
-  .close-btn:hover { color:#fff; }
-  .add-tab-button {
-    background:transparent; border:none; color:#ccc; cursor:pointer; font-size:18px; padding:4px 8px;
-  }
-  #editor-container { flex:1; height:0; } /* height:0 with flex:1 ensures Monaco fills remaining space */
-</style>
-
-<!-- Provide a reliable worker URL so Monaco works even from file:// or cross-origin -->
-<script>
-  (function() {
-    // use the same version as loader below
-    const base = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/';
-    window.MonacoEnvironment = {
-      getWorkerUrl: function(moduleId, label) {
-        const workerSource = `
-          self.MonacoEnvironment = { baseUrl: '${base}' };
-          importScripts('${base}vs/base/worker/workerMain.js');`;
-        return 'data:text/javascript;charset=utf-8,' + encodeURIComponent(workerSource);
-      }
-    };
-  })();
-</script>
-
-<!-- Monaco loader (CDN) -->
-<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+  <meta charset="UTF-8" />
+  <title>Monaco Editor with Tabs</title>
+  <script src="https://unpkg.com/monaco-editor@0.44.0/min/vs/loader.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: rgb(17, 17, 17);
+      color: white;
+      font-family: sans-serif;
+      overflow: hidden;
+    }
+    #tab-bar {
+      display: flex;
+      align-items: center;
+      background: rgb(17, 17, 17);
+      height: 40px;
+      padding: 0 8px;
+    }
+    .tab {
+      background: rgb(45, 45, 45);
+      padding: 6px 12px;
+      margin-right: 4px;
+      border-radius: 4px 4px 0 0;
+      cursor: pointer;
+      user-select: none;
+    }
+    .tab.active {
+      background: rgb(70, 70, 70);
+      font-weight: bold;
+    }
+    #add-tab {
+      background: rgb(45, 45, 45);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      width: 28px;
+      height: 28px;
+      cursor: pointer;
+    }
+    #editor-container {
+      height: calc(100% - 40px);
+    }
+  </style>
 </head>
 <body>
-  <div id="app">
-    <div id="tab-bar">
-      <div id="tabs-container" aria-label="tabs"></div>
-      <button id="add-tab-btn" class="add-tab-button" title="New Tab">+</button>
-    </div>
-    <div id="editor-container" role="main" aria-label="editor"></div>
+  <div id="tab-bar">
+    <div id="tabs"></div>
+    <button id="add-tab">+</button>
   </div>
+  <div id="editor-container"></div>
 
-<script>
-/* ---------- Tab + Editor logic ---------- */
-let tabs = [];              // each tab: { name, content, selection }
-let currentTabIndex = 0;
-let editor = null;
-let editorReady = false;
+  <script>
+    require.config({ paths: { vs: "https://unpkg.com/monaco-editor@0.44.0/min/vs" } });
 
-const tabsContainer = document.getElementById('tabs-container');
-const addBtn = document.getElementById('add-tab-btn');
+    let editor;
+    let tabs = [];
+    let currentTabIndex = 0;
 
-function createInitialTabs() {
-  // ensure there is exactly one tab at start
-  tabs = [{ name: 'Tab 1', content: 'print("Hello User, and welcome to Celestia!")', selection: null }];
-  currentTabIndex = 0;
-  renderTabs();
-}
+    require(["vs/editor/editor.main"], function () {
+      function createEditorModel(value = "", language = "csharp") {
+        return monaco.editor.createModel(value, language);
+      }
 
-// Render tabs fresh from `tabs[]`
-function renderTabs() {
-  tabsContainer.innerHTML = '';
-  tabs.forEach((tab, i) => {
-    const el = document.createElement('div');
-    el.className = 'tab' + (i === currentTabIndex ? ' active' : '');
-    el.dataset.index = i;
-    // label and close button separated
-    el.innerHTML = `<span class="tab-label">${escapeHtml(tab.name)}</span><span class="close-btn" title="Close tab">×</span>`;
-    tabsContainer.appendChild(el);
-  });
-}
+      function switchTab(index) {
+        if (index < 0 || index >= tabs.length) return;
+        currentTabIndex = index;
+        editor.setModel(tabs[index].model);
 
-// Escape helper
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]); }
+        document.querySelectorAll(".tab").forEach((tab, i) => {
+          tab.classList.toggle("active", i === index);
+        });
+      }
 
-/* Event delegation for tab clicks & close clicks */
-tabsContainer.addEventListener('click', (ev) => {
-  const tabEl = ev.target.closest('.tab');
-  if (!tabEl) return;
-  const idx = Number(tabEl.dataset.index);
-  if (isNaN(idx)) return;
+      function addTab(name = `Tab ${tabs.length + 1}`) {
+        const model = createEditorModel("// Start coding here...");
+        tabs.push({ name, model });
 
-  if (ev.target.classList.contains('close-btn')) {
-    closeTab(idx);
-  } else {
-    switchTab(idx);
-  }
-});
+        const tabEl = document.createElement("div");
+        tabEl.className = "tab";
+        tabEl.textContent = name;
+        tabEl.onclick = () => switchTab(tabs.indexOf(tabs.find(t => t.name === name)));
+        document.getElementById("tabs").appendChild(tabEl);
 
-addBtn.addEventListener('click', () => {
-  const newIndex = tabs.length;
-  tabs.push({ name: 'Tab ' + (newIndex + 1), content: '-- New file', selection: null });
-  renderTabs();
-  // If editor ready, activate new tab
-  if (editorReady) switchTab(newIndex);
-  else currentTabIndex = newIndex;
-});
+        switchTab(tabs.length - 1);
+      }
 
-/* Switch to a tab (save previous selection/content, restore new one) */
-function switchTab(index) {
-  if (index < 0 || index >= tabs.length) return;
-  // Save current content + selection
-  if (editorReady && tabs[currentTabIndex]) {
-    try {
-      tabs[currentTabIndex].content = editor.getValue();
-      tabs[currentTabIndex].selection = editor.getSelection ? editor.getSelection() : null;
-    } catch(e) { /* ignore */ }
-  }
-  currentTabIndex = index;
-  renderTabs();
+      editor = monaco.editor.create(document.getElementById("editor-container"), {
+        theme: "vs-dark",
+        automaticLayout: true,
+        smoothScrolling: true,
+        fontSize: 14,
+      });
 
-  if (!editorReady) return; // nothing more until editor exists
+      // Add initial tab
+      addTab("Tab 1");
 
-  const tab = tabs[index];
-  // Set content without creating extra undo step using setValue (simple & reliable)
-  editor.setValue(tab.content || '');
+      document.getElementById("add-tab").onclick = () => addTab();
 
-  // Restore selection if available, else move caret to end
-  if (tab.selection && tab.selection.startLineNumber) {
-    try {
-      editor.setSelection(tab.selection);
-      editor.revealRangeInCenter(tab.selection);
-    } catch(e) {
-      // fallback to placing cursor at end
-      placeCursorAtEnd();
-    }
-  } else {
-    placeCursorAtEnd();
-  }
-  editor.focus();
-}
+      // === Expose to C# (WebView2) ===
+      window.getEditorContent = function () {
+        if (!tabs[currentTabIndex]) return "";
+        return tabs[currentTabIndex].model.getValue();
+      };
 
-// place caret at end of document (used when no saved selection)
-function placeCursorAtEnd() {
-  const model = editor.getModel();
-  if (!model) return;
-  const lastLine = model.getLineCount();
-  const lastCol = model.getLineMaxColumn(lastLine);
-  editor.setPosition({ lineNumber: lastLine, column: lastCol });
-  editor.revealPositionInCenter({ lineNumber: lastLine, column: lastCol });
-}
-
-/* Close a tab and pick the next active one in a predictable way */
-function closeTab(index) {
-  if (tabs.length === 1) return; // always keep one tab
-  // If editor ready save content of the tab being closed
-  if (editorReady && tabs[index]) {
-    try { tabs[index].content = editor.getValue(); tabs[index].selection = editor.getSelection(); } catch(e){}
-  }
-  tabs.splice(index, 1);
-
-  // Decide new current index:
-  // - If we closed a tab before the current tab, shift current left by 1
-  // - If we closed the current tab, prefer the next tab at the same index (which shifted),
-  //   unless we closed the last tab, in which case go to the new last (index-1).
-  if (currentTabIndex > index) {
-    currentTabIndex = currentTabIndex - 1;
-  } else if (currentTabIndex === index) {
-    if (index >= tabs.length) currentTabIndex = tabs.length - 1; // closed the last tab -> go to previous
-    else currentTabIndex = index; // next tab now occupies this index
-  }
-  // Renumber tab names to keep Tab 1, Tab 2... behavior
-  tabs.forEach((t, i) => {
-    // preserve custom names if user wants later; for now keep simple numbering
-    t.name = 'Tab ' + (i + 1);
-  });
-
-  renderTabs();
-  if (editorReady) switchTab(currentTabIndex);
-}
-
-/* ---------- Monaco boot (after loader ready) ---------- */
-require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' }});
-
-// Create initial tab UI immediately so it's visible even before Monaco loads
-createInitialTabs();
-
-require(['vs/editor/editor.main'], function () {
-  // define light customizations if you want; we'll use vs-dark base and slight token rules
-  monaco.editor.defineTheme('celestia-dark', {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [
-      { token: 'keyword', foreground: 'ff6a00', fontStyle: 'bold' },
-      { token: 'comment', foreground: '666666' },
-      { token: 'number', foreground: 'ffc600' },
-      { token: 'string', foreground: 'ff8c3a' }
-    ]
-  });
-
-  editor = monaco.editor.create(document.getElementById('editor-container'), {
-    value: '',
-    language: 'lua',
-    theme: 'celestia-dark',
-    automaticLayout: true,
-    minimap: { enabled: false },
-    cursorBlinking: 'smooth',
-    renderWhitespace: 'none'
-  });
-
-  editorReady = true;
-
-  // load the currently selected tab into editor
-  switchTab(currentTabIndex);
-
-  // ensure typing focus
-  editor.focus();
-
-  // Optional: keyboard shortcuts for convenience
-  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyT, () => {
-    // Ctrl/Cmd+T = new tab
-    addBtn.click();
-  });
-  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyW, () => {
-    // Ctrl/Cmd+W = close tab
-    closeTab(currentTabIndex);
-  });
-});
-</script>
+      window.setEditorContent = function (text) {
+        if (!tabs[currentTabIndex]) return;
+        tabs[currentTabIndex].model.setValue(text);
+      };
+    });
+  </script>
 </body>
 </html>
