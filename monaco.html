@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Monaco Editor with Tabs</title>
+  <title>Monaco Editor with Tabs & Syntax Highlighting</title>
   <script src="https://unpkg.com/monaco-editor@0.44.0/min/vs/loader.js"></script>
   <style>
     html, body {
@@ -29,18 +29,28 @@
       overflow-x: auto;
     }
     .tab {
+      display: flex;
+      align-items: center;
       background: rgb(30, 30, 30);
-      padding: 6px 12px;
+      padding: 6px 10px;
       margin-right: 4px;
       border-radius: 6px 6px 0 0;
       cursor: pointer;
       user-select: none;
       white-space: nowrap;
-      transition: background 0.2s;
     }
     .tab.active {
       background: rgb(50, 50, 50);
       font-weight: bold;
+    }
+    .tab .close {
+      margin-left: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      color: #bbb;
+    }
+    .tab .close:hover {
+      color: red;
     }
     #add-tab {
       background: rgb(30, 30, 30);
@@ -77,8 +87,50 @@
     const MAX_TABS = 9;
 
     require(["vs/editor/editor.main"], function () {
-      function createEditorModel(value = "", language = "csharp") {
-        return monaco.editor.createModel(value, language);
+      // === Custom Dark Theme ===
+      monaco.editor.defineTheme("custom-dark", {
+        base: "vs-dark",
+        inherit: true,
+        rules: [
+          { token: "keyword", foreground: "c586c0" }, // local, function
+          { token: "identifier", foreground: "dcdcaa" }, // variables
+          { token: "string", foreground: "ce9178" }, // strings
+          { token: "number", foreground: "b5cea8" },
+          { token: "comment", foreground: "6a9955" },
+          { token: "function", foreground: "4fc1ff" }, // print(), warn()
+        ],
+        colors: {
+          "editor.background": "#111111"
+        }
+      });
+
+      // === Add Lua completions ===
+      monaco.languages.registerCompletionItemProvider("lua", {
+        provideCompletionItems: () => {
+          const suggestions = [
+            { label: "print", kind: monaco.languages.CompletionItemKind.Function, insertText: "print()", detail: "Print to console" },
+            { label: "warn", kind: monaco.languages.CompletionItemKind.Function, insertText: "warn()", detail: "Print warning" },
+            { label: "workspace", kind: monaco.languages.CompletionItemKind.Variable, insertText: "workspace", detail: "Global workspace" },
+            { label: "local", kind: monaco.languages.CompletionItemKind.Keyword, insertText: "local ", detail: "Declare local variable" }
+          ];
+          return { suggestions: suggestions };
+        }
+      });
+
+      // === Editor Setup ===
+      editor = monaco.editor.create(document.getElementById("editor-container"), {
+        theme: "custom-dark",
+        automaticLayout: true,
+        smoothScrolling: true,
+        fontSize: 14,
+        cursorSmoothCaretAnimation: true,
+        minimap: { enabled: true, side: "right" },
+        language: "lua"
+      });
+
+      // === Tabs ===
+      function createEditorModel(value = "") {
+        return monaco.editor.createModel(value, "lua");
       }
 
       function renderTabs() {
@@ -88,11 +140,21 @@
           const tabEl = document.createElement("div");
           tabEl.className = "tab" + (i === currentTabIndex ? " active" : "");
           tabEl.textContent = tab.name;
+
+          // Close button
+          const closeBtn = document.createElement("span");
+          closeBtn.textContent = "×";
+          closeBtn.className = "close";
+          closeBtn.onclick = (e) => {
+            e.stopPropagation();
+            closeTab(i);
+          };
+          tabEl.appendChild(closeBtn);
+
           tabEl.onclick = () => switchTab(i);
           tabsContainer.appendChild(tabEl);
         });
 
-        // disable add button at max
         document.getElementById("add-tab").disabled = tabs.length >= MAX_TABS;
       }
 
@@ -110,32 +172,33 @@
         switchTab(tabs.length - 1);
       }
 
-      editor = monaco.editor.create(document.getElementById("editor-container"), {
-        theme: "vs-dark",
-        automaticLayout: true,
-        smoothScrolling: true,
-        fontSize: 14,
-        cursorSmoothCaretAnimation: true,   // ✅ smooth cursor
-        minimap: {
-          enabled: true,
-          side: "right"                    // ✅ minimap on right
+      function closeTab(index) {
+        if (tabs.length <= 1) return; // keep at least one tab
+        tabs[index].model.dispose();
+        tabs.splice(index, 1);
+
+        // Renumber tabs
+        tabs.forEach((t, i) => t.name = `Tab ${i + 1}`);
+
+        if (currentTabIndex >= tabs.length) {
+          currentTabIndex = tabs.length - 1;
         }
-      });
+        switchTab(currentTabIndex);
+      }
+
+      document.getElementById("add-tab").onclick = () => addTab();
 
       // Start with 1 tab
       addTab("Tab 1");
 
-      document.getElementById("add-tab").onclick = () => addTab();
-
-      // === Expose to C# (WebView2) ===
+      // === Expose to C# ===
       window.getEditorContent = function () {
-        if (!tabs[currentTabIndex]) return "";
-        return tabs[currentTabIndex].model.getValue();
+        return tabs[currentTabIndex]?.model.getValue() ?? "";
       };
-
       window.setEditorContent = function (text) {
-        if (!tabs[currentTabIndex]) return;
-        tabs[currentTabIndex].model.setValue(text);
+        if (tabs[currentTabIndex]) {
+          tabs[currentTabIndex].model.setValue(text);
+        }
       };
     });
   </script>
