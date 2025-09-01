@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Celestia - Monaco Code Editor</title>
 
-  <!-- Monaco Loader -->
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
 
   <style>
@@ -24,7 +23,6 @@
       flex-direction: column;
     }
 
-    /* Top tab bar */
     #tab-bar {
       display: flex;
       align-items: center;
@@ -49,12 +47,12 @@
       display: flex;
       align-items: center;
       gap: 6px;
+      border: 1px solid #333;
+      border-bottom: none;
     }
 
     .tab.active {
       background: #1e1e1e;
-      border: 1px solid #333;
-      border-bottom: none;
     }
 
     .tab .close-btn {
@@ -75,7 +73,6 @@
       padding: 0 6px;
     }
 
-    /* Editor container */
     #editor-container {
       flex: 1;
     }
@@ -83,13 +80,10 @@
 </head>
 <body>
   <div id="app">
-    <!-- Tabs -->
     <div id="tab-bar">
       <div id="tabs-container"></div>
       <button id="add-tab-btn" class="add-tab-button">+</button>
     </div>
-
-    <!-- Monaco editor -->
     <div id="editor-container"></div>
   </div>
 
@@ -98,18 +92,17 @@
     let tabs = [];
     let currentTabIndex = -1;
 
+    // Initialize Monaco after DOM ready
     window.addEventListener("DOMContentLoaded", () => {
       require.config({
         paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs" }
       });
 
       require(["vs/editor/editor.main"], function () {
-        // Custom dark theme
-        monaco.editor.defineTheme("net-theme-dark", {
+        monaco.editor.defineTheme("celestia-dark", {
           base: "vs-dark",
           inherit: true,
           rules: [
-            { token: "global", foreground: "FFFFFF", fontStyle: "bold" },
             { token: "keyword", foreground: "ff6a00", fontStyle: "bold" },
             { token: "comment", foreground: "666666" },
             { token: "number", foreground: "ffc600" },
@@ -117,21 +110,19 @@
           ]
         });
 
-        // Initialize editor
         editor = monaco.editor.create(document.getElementById("editor-container"), {
           value: "",
           language: "lua",
-          theme: "net-theme-dark",
+          theme: "celestia-dark",
           automaticLayout: true,
           minimap: { enabled: false },
-          smoothScrolling: true,
-          cursorBlinking: "smooth", // smooth caret
+          cursorBlinking: "smooth",
         });
 
-        // Add the first tab automatically
+        // Create first tab right away
         addTab("Tab 1", 'print("Hello User, and welcome to Celestia!")');
 
-        // Add new tab button
+        // Hook up + button
         document.getElementById("add-tab-btn").addEventListener("click", () => {
           const name = "Tab " + (tabs.length + 1);
           addTab(name, "-- New file");
@@ -147,13 +138,10 @@
       tabEl.className = "tab";
       tabEl.innerHTML = `<span class="tab-title">${name}</span> <span class="close-btn">×</span>`;
 
-      // Switch on click
-      tabEl.addEventListener("click", (e) => {
-        if (e.target.classList.contains("close-btn")) {
-          closeTab(tabIndex);
-        } else {
-          switchTab(tabIndex);
-        }
+      tabEl.querySelector(".tab-title").addEventListener("click", () => switchTab(tabIndex));
+      tabEl.querySelector(".close-btn").addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeTab(tabIndex);
       });
 
       document.getElementById("tabs-container").appendChild(tabEl);
@@ -162,39 +150,31 @@
 
     function switchTab(index) {
       if (currentTabIndex >= 0 && tabs[currentTabIndex]) {
-        // Save current editor content
         tabs[currentTabIndex].content = editor.getValue();
         document.getElementsByClassName("tab")[currentTabIndex].classList.remove("active");
       }
 
       currentTabIndex = index;
-      const tabData = tabs[index];
-      editor.setValue(tabData.content);
+      editor.setValue(tabs[index].content);
       document.getElementsByClassName("tab")[index].classList.add("active");
     }
 
     function closeTab(index) {
-      if (tabs.length === 1) return; // Always keep one tab open
+      if (tabs.length === 1) return; // Keep one tab open
 
-      // Save content before closing
       if (index === currentTabIndex) {
         tabs[index].content = editor.getValue();
       }
 
-      // Remove tab from array
       tabs.splice(index, 1);
+      document.getElementsByClassName("tab")[index].remove();
 
-      // Remove tab element
-      const tabEls = document.getElementsByClassName("tab");
-      tabEls[index].remove();
-
-      // Renumber remaining tabs
-      for (let i = 0; i < tabs.length; i++) {
+      // Renumber
+      Array.from(document.getElementsByClassName("tab-title")).forEach((el, i) => {
         tabs[i].name = "Tab " + (i + 1);
-        document.getElementsByClassName("tab-title")[i].textContent = tabs[i].name;
-      }
+        el.textContent = tabs[i].name;
+      });
 
-      // Decide which tab to switch to
       let newIndex = index;
       if (newIndex >= tabs.length) newIndex = tabs.length - 1;
       switchTab(newIndex);
