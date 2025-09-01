@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Celestia - Monaco Code Editor</title>
 
-  <!-- Monaco Loader from CDN -->
+  <!-- Monaco Loader -->
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
 
   <style>
@@ -13,7 +13,7 @@
       height: 100%;
       margin: 0;
       padding: 0;
-      background: #1e1e1e;
+      background: rgb(17,17,17);
       font-family: sans-serif;
       color: #ccc;
     }
@@ -28,7 +28,7 @@
     #tab-bar {
       display: flex;
       align-items: center;
-      background: #252526;
+      background: rgb(17,17,17);
       border-bottom: 1px solid #333;
       padding: 4px;
     }
@@ -40,18 +40,30 @@
     }
 
     .tab {
-      background: #2d2d2d;
+      background: rgb(45,45,45);
       padding: 4px 10px;
       border-radius: 4px 4px 0 0;
       cursor: pointer;
       font-size: 13px;
       user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .tab.active {
       background: #1e1e1e;
       border: 1px solid #333;
       border-bottom: none;
+    }
+
+    .tab .close-btn {
+      color: #aaa;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .tab .close-btn:hover {
+      color: #fff;
     }
 
     .add-tab-button {
@@ -113,14 +125,15 @@
           automaticLayout: true,
           minimap: { enabled: false },
           smoothScrolling: true,
+          cursorBlinking: "smooth", // smooth caret
         });
 
         // Add the first tab automatically
-        addTab("main.lua", 'print("Hello User, and welcome to Celestia!")');
+        addTab("Tab 1", 'print("Hello User, and welcome to Celestia!")');
 
         // Add new tab button
         document.getElementById("add-tab-btn").addEventListener("click", () => {
-          const name = "untitled" + (tabs.length + 1) + ".lua";
+          const name = "Tab " + (tabs.length + 1);
           addTab(name, "-- New file");
         });
       });
@@ -132,26 +145,59 @@
 
       const tabEl = document.createElement("div");
       tabEl.className = "tab";
-      tabEl.textContent = name;
-      tabEl.addEventListener("click", () => switchTab(tabIndex));
-      document.getElementById("tabs-container").appendChild(tabEl);
+      tabEl.innerHTML = `<span class="tab-title">${name}</span> <span class="close-btn">×</span>`;
 
+      // Switch on click
+      tabEl.addEventListener("click", (e) => {
+        if (e.target.classList.contains("close-btn")) {
+          closeTab(tabIndex);
+        } else {
+          switchTab(tabIndex);
+        }
+      });
+
+      document.getElementById("tabs-container").appendChild(tabEl);
       switchTab(tabIndex);
     }
 
     function switchTab(index) {
-      if (currentTabIndex >= 0) {
+      if (currentTabIndex >= 0 && tabs[currentTabIndex]) {
         // Save current editor content
         tabs[currentTabIndex].content = editor.getValue();
-        // Deactivate old tab
         document.getElementsByClassName("tab")[currentTabIndex].classList.remove("active");
       }
 
-      // Switch to new tab
       currentTabIndex = index;
       const tabData = tabs[index];
       editor.setValue(tabData.content);
       document.getElementsByClassName("tab")[index].classList.add("active");
+    }
+
+    function closeTab(index) {
+      if (tabs.length === 1) return; // Always keep one tab open
+
+      // Save content before closing
+      if (index === currentTabIndex) {
+        tabs[index].content = editor.getValue();
+      }
+
+      // Remove tab from array
+      tabs.splice(index, 1);
+
+      // Remove tab element
+      const tabEls = document.getElementsByClassName("tab");
+      tabEls[index].remove();
+
+      // Renumber remaining tabs
+      for (let i = 0; i < tabs.length; i++) {
+        tabs[i].name = "Tab " + (i + 1);
+        document.getElementsByClassName("tab-title")[i].textContent = tabs[i].name;
+      }
+
+      // Decide which tab to switch to
+      let newIndex = index;
+      if (newIndex >= tabs.length) newIndex = tabs.length - 1;
+      switchTab(newIndex);
     }
   </script>
 </body>
