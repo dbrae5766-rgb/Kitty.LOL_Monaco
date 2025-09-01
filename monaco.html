@@ -20,14 +20,22 @@
       background: rgb(17, 17, 17);
       height: 40px;
       padding: 0 8px;
+      border-bottom: 1px solid rgb(30, 30, 30);
+    }
+    #tabs {
+      display: flex;
+      flex: 1;
+      align-items: center;
+      overflow-x: auto;
     }
     .tab {
       background: rgb(45, 45, 45);
       padding: 6px 12px;
       margin-right: 4px;
-      border-radius: 4px 4px 0 0;
+      border-radius: 6px 6px 0 0;
       cursor: pointer;
       user-select: none;
+      white-space: nowrap;
     }
     .tab.active {
       background: rgb(70, 70, 70);
@@ -37,10 +45,11 @@
       background: rgb(45, 45, 45);
       color: white;
       border: none;
-      border-radius: 4px;
+      border-radius: 6px;
       width: 28px;
       height: 28px;
       cursor: pointer;
+      margin-left: 4px;
     }
     #editor-container {
       height: calc(100% - 40px);
@@ -60,32 +69,39 @@
     let editor;
     let tabs = [];
     let currentTabIndex = 0;
+    const MAX_TABS = 9;
 
     require(["vs/editor/editor.main"], function () {
       function createEditorModel(value = "", language = "csharp") {
         return monaco.editor.createModel(value, language);
       }
 
+      function renderTabs() {
+        const tabsContainer = document.getElementById("tabs");
+        tabsContainer.innerHTML = "";
+        tabs.forEach((tab, i) => {
+          const tabEl = document.createElement("div");
+          tabEl.className = "tab" + (i === currentTabIndex ? " active" : "");
+          tabEl.textContent = tab.name;
+          tabEl.onclick = () => switchTab(i);
+          tabsContainer.appendChild(tabEl);
+        });
+      }
+
       function switchTab(index) {
         if (index < 0 || index >= tabs.length) return;
         currentTabIndex = index;
         editor.setModel(tabs[index].model);
-
-        document.querySelectorAll(".tab").forEach((tab, i) => {
-          tab.classList.toggle("active", i === index);
-        });
+        renderTabs();
       }
 
       function addTab(name = `Tab ${tabs.length + 1}`) {
+        if (tabs.length >= MAX_TABS) {
+          alert("Maximum of " + MAX_TABS + " tabs reached.");
+          return;
+        }
         const model = createEditorModel("// Start coding here...");
         tabs.push({ name, model });
-
-        const tabEl = document.createElement("div");
-        tabEl.className = "tab";
-        tabEl.textContent = name;
-        tabEl.onclick = () => switchTab(tabs.indexOf(tabs.find(t => t.name === name)));
-        document.getElementById("tabs").appendChild(tabEl);
-
         switchTab(tabs.length - 1);
       }
 
@@ -96,7 +112,7 @@
         fontSize: 14,
       });
 
-      // Add initial tab
+      // Start with 1 tab
       addTab("Tab 1");
 
       document.getElementById("add-tab").onclick = () => addTab();
