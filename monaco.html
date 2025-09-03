@@ -104,7 +104,7 @@
         }
       });
 
-      // === Lua Completions (basic + advanced Roblox keywords) ===
+      // === Lua Completions (Roblox keywords, services, etc.) ===
       monaco.languages.registerCompletionItemProvider("lua", {
         provideCompletionItems: (model, position) => {
           const word = model.getWordUntilPosition(position);
@@ -220,13 +220,14 @@
       // Start with 1 tab
       addTab("Tab 1");
 
-      // === Expose to C# ===
+      // === Expose to C# (now always uses current tab model) ===
       window.getEditorContent = function () {
-        return tabs[currentTabIndex]?.model.getValue() ?? "";
+        return editor.getModel()?.getValue() ?? "";
       };
       window.setEditorContent = function (text) {
-        if (tabs[currentTabIndex]) {
-          tabs[currentTabIndex].model.setValue(text);
+        const model = editor.getModel();
+        if (model) {
+          model.setValue(text);
         }
       };
     });
